@@ -1,0 +1,10 @@
+{
+  "name": "url-proxy-pred",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
