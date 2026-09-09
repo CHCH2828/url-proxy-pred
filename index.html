@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI链接大小预测机器人</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: { colors: { primary: '#165DFF', dark: '#1D2129' } }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: system-ui, sans-serif; }
+        .shadow-card { box-shadow: 0 2px 14px rgba(22,93,255,0.12); }
+    </style>
+</head>
+<body class="bg-slate-50 text-dark min-h-screen p-4">
+    <div class="max-w-2xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl font-bold text-primary">AI链接大小预测机器人</h1>
+            <p class="text-gray-500 mt-1 text-sm">输入网页链接 → 自动抓取内容 → AI提取数字 → 预测【大/小】结果</p>
+        </header>
+
+        <div class="bg-white rounded-2xl p-5 shadow-card mb-4">
+            <h3 class="font-semibold mb-3 flex items-center gap-2">
+                <i class="fa fa-link text-primary"></i>外部链接接入
+            </h3>
+            <div class="flex gap-2">
+                <input id="urlInput" type="text" placeholder="粘贴网页地址 https://..."
+                    class="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 outline-none focus:border-primary transition">
+                <button id="loadBtn" class="bg-primary text-white px-5 py-2.5 rounded-xl hover:bg-primary/90 transition">加载</button>
+            </div>
+            <div id="statusBox" class="mt-3 rounded-xl bg-slate-100 px-3 py-2.5 text-sm flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa fa-info-circle text-gray-400"></i>
+                    <span>就绪</span>
+                </div>
+                <span class="text-gray-400">0 KB/s</span>
+            </div>
+            <div class="mt-3 flex gap-2">
+                <button id="analyzeBtn" class="bg-emerald-500 text-white px-4 py-2 rounded-xl hover:bg-emerald-600 transition flex-1">
+                    <i class="fa fa-magic"></i> AI提取&预测
+                </button>
+                <button id="clearBtn" class="bg-gray-200 px-4 py-2 rounded-xl hover:bg-gray-300 transition">清空</button>
+            </div>
+            <div class="mt-2 text-xs text-orange-500">
+                <i class="fa fa-info-circle"></i> 海外服务器代理，国内网站可能超时；仅数据统计演示，随机事件无法预测
+            </div>
+        </div>
+
+        <!-- 预测结果卡片 -->
+        <div id="resultCard" class="bg-white rounded-2xl p-5 shadow-card mb-4 hidden">
+            <h3 class="font-semibold mb-3 flex items-center gap-2">
+                <i class="fa fa-bullseye text-primary"></i>AI预测结果
+            </h3>
+            <div class="text-center py-4">
+                <div id="bigSmallResult" class="text-5xl font-bold mb-2"></div>
+                <div id="predDetail" class="text-sm text-gray-600"></div>
+            </div>
+            <button id="downloadBtn" class="w-full border border-primary text-primary py-2 rounded-xl hover:bg-primary/5 transition">
+                <i class="fa fa-download"></i> 下载完整报告
+            </button>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-card">
+            <h3 class="font-semibold mb-3 flex items-center gap-2">
+                <i class="fa fa-eye text-primary"></i>网页预览
+            </h3>
+            <div class="relative h-80 border border-gray-200 rounded-xl overflow-hidden bg-gray-100">
+                <iframe id="previewFrame" class="w-full h-full" sandbox="allow-same-origin allow-scripts"></iframe>
+                <div id="frameTip" class="absolute inset-0 flex items-center justify-center text-gray-400">
+                    请输入链接并点击加载
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "https://url-proxy-pred-production.up.railway.app";
+        const $ = s => document.querySelector(s);
+        
+        let currentUrl = "";
+        let reportData = null;
+
+        function setStatus(icon, text, speed="0 KB/s") {
+            $("#statusBox").innerHTML = `
+                <div class="flex items-center gap-2">
+                    <i class="${icon}"></i>
+                    <span>${text}</span>
+                </div>
+                <span class="text-gray-400">${speed}</span>
+            `;
+        }
+
+        // 加载预览
+        $("#loadBtn").onclick = () => {
+            const val = $("#urlInput").value.trim();
+            if(!val) { setStatus("fa fa-exclamation-circle text-red-500", "请输入链接"); return; }
+            try { new URL(val) } catch(e) { setStatus("fa fa-exclamation-circle text-red-500", "链接格式错误"); return; }
+            
+            currentUrl = val;
+            $("#resultCard").classList.add("hidden");
+            $("#frameTip").style.display = "none";
+            setStatus("fa fa-spinner fa-spin text-primary", "加载中...");
+            $("#previewFrame").src = `${API_BASE}/api/proxy-html?url=${encodeURIComponent(val)}`;
+            
+            setTimeout(() => setStatus("fa fa-check text-green-500", "加载完成"), 1500);
+        };
+
+        // AI提取预测
+        $("#analyzeBtn").onclick = async () => {
+            if(!currentUrl) { setStatus("fa fa-exclamation-circle text-red-500", "请先加载链接"); return; }
+            
+            setStatus("fa fa-spinner fa-spin text-emerald-500", "AI提取分析中...");
+            $("#resultCard").classList.add("hidden");
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/extract-text?url=${encodeURIComponent(currentUrl)}`);
+                const data = await res.json();
+                
+                if(data.err) throw new Error(data.err);
+                
+                reportData = data;
+                const pred = data.predResult;
+                
+                if(pred.ok) {
+                    $("#bigSmallResult").textContent = pred.result;
+                    $("#bigSmallResult").className = "text-5xl font-bold mb-2 " + (pred.result === "大" ? "text-red-500" : "text-blue-500");
+                    $("#predDetail").innerHTML = `
+                        预测值：${pred.nextPredValue} ｜ 阈值：${pred.threshold}<br>
+                        历史数字：${data.numList.slice(0,20).join(", ")}${data.numList.length > 20 ? "..." : ""}
+                    `;
+                } else {
+                    $("#bigSmallResult").textContent = "数据不足";
+                    $("#bigSmallResult").className = "text-3xl font-bold mb-2 text-gray-400";
+                    $("#predDetail").textContent = pred.tip + "（页面识别到" + data.numList.length + "个数字）";
+                }
+                
+                $("#resultCard").classList.remove("hidden");
+                setStatus("fa fa-check text-green-500", "预测完成");
+            } catch(e) {
+                setStatus("fa fa-exclamation-circle text-red-500", "抓取失败：" + e.message);
+            }
+        };
+
+        // 下载报告
+        $("#downloadBtn").onclick = () => {
+            if(!reportData) return;
+            const pred = reportData.predResult;
+            const text = `【AI链接大小预测报告】
+目标地址：${currentUrl}
+页面文字：${reportData.text}
+识别数字：${reportData.numList.join(", ")}
+预测结果：${pred.ok ? pred.result : "数据不足"}
+预测值：${pred.ok ? pred.nextPredValue : "-"}
+阈值：${pred.ok ? pred.threshold : "-"}
+免责声明：仅数据统计演示，随机事件无法预测`;
+            
+            const blob = new Blob([text], {type:"text/plain"});
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "AI预测报告.txt";
+            a.click();
+        };
+
+        // 清空
+        $("#clearBtn").onclick = () => {
+            $("#urlInput").value = "";
+            $("#previewFrame").src = "";
+            $("#frameTip").style.display = "flex";
+            $("#resultCard").classList.add("hidden");
+            currentUrl = "";
+            reportData = null;
+            setStatus("fa fa-info-circle text-gray-400", "就绪");
+        };
+    </script>
+</body>
+</html>
