@@ -1,11 +1,11 @@
+// ⭐ 必须放在最顶部！所有require之前！
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 const https = require('https');
 const cheerio = require('cheerio');
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
-
-// 全局关闭tls证书校验
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const ignoreAgent = new https.Agent({
   rejectUnauthorized: false
@@ -16,7 +16,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// 通用请求封装（原生https，不使用node-fetch）
 function fetchHtml(targetUrl) {
   return new Promise((resolve, reject) => {
     const u = new URL(targetUrl);
@@ -26,6 +25,7 @@ function fetchHtml(targetUrl) {
       path: u.pathname + u.search,
       method: 'GET',
       agent: ignoreAgent,
+      rejectUnauthorized: false, // 额外再加一层兜底
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
       }
