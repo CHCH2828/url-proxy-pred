@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 const express = require('express');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const cheerio = require('cheerio');
