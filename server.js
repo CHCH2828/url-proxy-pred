@@ -1,14 +1,13 @@
 const https = require('https');
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-const express = require('express');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const cheerio = require('cheerio');
+const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 【关键】创建忽略SSL过期证书的agent
-const ignoreSslAgent = new https.Agent({
+// 全局关闭tls证书校验
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+const ignoreAgent = new https.Agent({
   rejectUnauthorized: false
 });
 
@@ -16,6 +15,30 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   next();
 });
+
+// 通用请求封装（原生https，不使用node-fetch）
+function fetchHtml(targetUrl) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(targetUrl);
+    const opts = {
+      hostname: u.hostname,
+      port: u.port || 443,
+      path: u.pathname + u.search,
+      method: 'GET',
+      agent: ignoreAgent,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+      }
+    };
+    const req = https.request(opts, (resp) => {
+      let buf = '';
+      resp.on('data', chunk => buf += chunk);
+      resp.on('end', () => resolve(buf));
+    });
+    req.on('error', e => reject(e));
+    req.end();
+  });
+}
 
 function predictBigSmall(arr) {
   const nums = arr.filter(x=>!isNaN(x) && isFinite(x));
@@ -48,11 +71,7 @@ app.get('/api/proxy-html', async (req, res) => {
   try {
     const targetUrl = req.query.url;
     if(!targetUrl) return res.status(400).send('缺少url参数');
-    const resp = await fetch(targetUrl, {
-      agent: ignoreSslAgent, // ✅ 挂载忽略证书agent
-      headers: {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'}
-    });
-    const html = await resp.text();
+    const html = await fetchHtml(targetUrl);
     res.removeHeader('X-Frame-Options');
     res.removeHeader('Content-Security-Policy');
     res.send(html);
@@ -65,11 +84,7 @@ app.get('/api/extract-text', async (req, res) => {
   try {
     const targetUrl = req.query.url;
     if(!targetUrl) return res.status(400).json({err:'缺少url'});
-    const resp = await fetch(targetUrl, {
-      agent: ignoreSslAgent, // ✅ 挂载忽略证书agent
-      headers: {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'}
-    });
-    const html = await resp.text();
+    const html = await fetchHtml(targetUrl);
     const $ = cheerio.load(html);
     const rawText = $('body').text().replace(/\s+/g,' ').trim();
 
