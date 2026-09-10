@@ -1,3 +1,4 @@
+const https = require('https');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const express = require('express');
@@ -5,6 +6,11 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const cheerio = require('cheerio');
 const app = express();
 const port = process.env.PORT || 3000;
+
+// 【关键】创建忽略SSL过期证书的agent
+const ignoreSslAgent = new https.Agent({
+  rejectUnauthorized: false
+});
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -43,6 +49,7 @@ app.get('/api/proxy-html', async (req, res) => {
     const targetUrl = req.query.url;
     if(!targetUrl) return res.status(400).send('缺少url参数');
     const resp = await fetch(targetUrl, {
+      agent: ignoreSslAgent, // ✅ 挂载忽略证书agent
       headers: {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'}
     });
     const html = await resp.text();
@@ -59,6 +66,7 @@ app.get('/api/extract-text', async (req, res) => {
     const targetUrl = req.query.url;
     if(!targetUrl) return res.status(400).json({err:'缺少url'});
     const resp = await fetch(targetUrl, {
+      agent: ignoreSslAgent, // ✅ 挂载忽略证书agent
       headers: {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'}
     });
     const html = await resp.text();
